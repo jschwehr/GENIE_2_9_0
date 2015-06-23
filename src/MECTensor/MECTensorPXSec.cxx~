@@ -1,0 +1,241 @@
+/*
+
+coppying heavily from MECPXSec.cxx
+
+
+
+ */
+
+// includes
+#include <TMath.h>
+
+#include "Conventions/Constants.h"
+#include "Conventions/Controls.h"
+#include "Conventions/GBuild.h"
+#include "Conventions/Units.h"
+#include "GHEP/GHepParticle.h"
+#include "Messenger/Messenger.h"
+#include "MECTensor/MECTensorPXSec.h"
+#include "MECTensor/MECLoadHadTensor.h"
+#include "PDG/PDGCodes.h"
+#include "PDG/PDGUtils.h"
+#include "PDG/PDGLibrary.h"
+#include "Utils/KineUtils.h"
+
+
+using namespace genie;
+using namespace genie::constants;
+using namespace genie::controls;
+
+//____________________________________________________________
+MECTensorPXSec::MECTensorPXSec() :
+  XSecAlgorithmI("genie::MECTensorPXSec")
+{
+
+}
+
+//_____________________________________________________________
+MECTensorPXSec::MECTensorPXSec(string config) :
+  XSecAlgorithmI("genie::MECPSXec",config)
+{
+
+}
+
+//_____________________________________________________________
+MECTensorPXSec::~MECTensorPXSec()
+{
+
+}
+
+//_____________________________________________________________
+double MECTensorPXSec::XSec(
+		     const Interaction * interaction, KinePhaseSpace_t kps) const
+{
+  // return double differential xsec
+
+  // initial state
+  int    tgtpdg = interaction->InitState().Tgt().Pdg();
+  int    nupdg  = interaction->InitState().ProbePdg();
+  double Enu    = interaction->InitState().ProbeE(kRfLab);
+  TLorentzVector * v4Nu = interaction->InitState().GetProbeP4(kRfLab);
+
+  // final state
+  const Kinematics kinematics = interaction -> Kine();
+  TLorentzVector v4lep = kinematics.FSLeptonP4();
+  double Mlep = interaction->FSPrimLepton()->Mass();
+
+  // kinematics 
+  double Tmu = v4Nu->E()*v4Nu->E() - Mlep;
+  double CosTheta = cos(v4lep.Theta() - v4Nu->Theta());
+  
+  // get hadron tensor
+  MECLoadHadTensor * hadtensor = MECLoadHadTensor::Instance(tgtpdg, nupdg);
+
+  //double xsec = hadtensor->XSecFullAll(tgtpdg, nupdg, Enu, Tmu, CosTheta);
+  double xsec = XSecAllTargets(tgtpdg, nupdg, Enu, Tmu, CosTheta);
+
+  return xsec;
+}
+
+//_____________________________________________________________
+double MECTensorPXSec::Integral(const Interaction * interaction) const {
+  // return integrated xsec at the given neutrino energy
+
+  // initial state
+  int    tgtpdg = interaction->InitState().Tgt().Pdg();
+  int    nupdg  = interaction->InitState().ProbePdg();
+  double Enu = interaction->InitState().ProbeE(kRfHitNucRest);
+
+  // get hadron tensor
+  MECLoadHadTensor * hadtensor = MECLoadHadTensor::Instance(tgtpdg, nupdg);
+
+  double xSecAtE = hadtensor->TotalXsecAtE(tgtpdg, nupdg, Enu);
+  if (!xSecAtE) return 0;
+  else return xSecAtE;  
+
+}
+
+
+//_____________________________________________________________
+bool MECTensorPXSec::ValidProcess(const Interaction * interaction) const {
+  if(interaction->TestBit(kISkipProcessChk)) return true;
+
+  const ProcessInfo & proc_info = interaction->ProcInfo();
+  if(!proc_info.IsMECTensor()&&!proc_info.IsMECTensorPDD()) return false;
+
+  else return true;
+}
+
+//_____________________________________________________________
+void MECTensorPXSec::Configure(const Registry & config){
+  Algorithm::Configure(config);
+  this->LoadConfig();
+}
+//_____________________________________________________________
+void MECTensorPXSec::LoadConfig(void){
+
+}
+
+
+
+//____________________________________________________________________
+// extension to all targets:
+double MECLoadHadTensor::XSecAllTargets(tgtpdg, nupdg, Enu, Tmu, CosTheta){
+
+  // Targets Available:
+  double availableTgtPDG[3]=[1000012060, 1000016080, 1000040200];
+  double xsec;
+
+
+  // Have Target
+  if (haveTgt(tgtpdg,availableTgtPDG)){
+    MECLoadHadTensor * hadtensor = MECLoadHadTensor::Instance(tgtpdg, nupdg);    
+    xsec = hadtensor->XSecFullAll(tgtpdg, nupdg, Enu, Tmu, CosTheta);
+  }
+
+  // figure out if interpolate, extrapolate, or other
+  else {
+
+    // get closest smaller target:
+    int AloInd = lowestTgt(tgttpdg,availableTgtPDG);
+
+    // function had error:
+    if (aloInd == availableTgtPDG.size()){
+      return -1;
+    }
+
+    // extrapolate above
+    else if (AloInd == availableTgtPDG.size()-1){
+      return -1;
+    }
+
+    // extrapolate below
+    else if (AloInd == -1){
+      return -1;
+    }
+
+    // interpolate
+    else if (AloInd >= 0 && AloInd < availableTgtPDG.size()-1 ){
+
+      int Alo = availableTgtPDG[AloInd];
+      int Ahi = availableTgtPDG[AloInd+1];
+
+      // load larger and smaller target tensors
+      MECLoadHadTensor * hadtensorLo = MECLoadHadTensor::Instance(Alo, nupdg);
+      MECLoadHadTensor * hadtensorHi = MECLoadHadTensor::Instance(Ahi, nupdg);
+
+      // pull xsecs 
+      double xsecLo = hadtensorLo->XSecFullAll(Alo, nupdg, Enu, Tmu, CosTheta);
+      double xsecHi = hadtensorHi->XSecFullAll(Ahi, nupdg, Enu, Tmu, CosTheta);
+
+      // linear interpolate
+      xsec = interpolateAllTargets(tgtpdg, Alo, Ahi, xsecLo, xsecHi);
+
+    }// end else if interpolate
+
+    // problem.
+    else {
+      // function failed.
+    }
+      
+  }// end else - interpolate/extrapolate
+
+  return xsec;
+}
+
+//____________________________________________________________________
+// extension to all targets:
+double MECLoadHadTensor::TotalXSecAtEAllTargets(){
+
+
+
+
+
+}
+
+
+//____________________________________________________________________
+// interpolate xsec function
+// for now, linear
+ double interpolateAllTargets(tgt, tgtlo, tgthi, xseclo, xsechi){
+   double WeightA = (tgt - tgtlo) / (tgthi - tgtlo);
+   double xsec = xseclo + (xsechi - xseclo)*WeightA;
+   return xsec; 
+ }
+
+
+ //___________________________________________________
+ // loop through return true/false (find function...)
+bool haveTgt(tgt,array){
+  
+  for (int i =0; i < array.size(); i ++){
+    if (tgt == array[i]) return true;
+  }
+  return false;
+}
+
+
+//_____________________________________________________________________
+// loop through return indice of first smallest target
+// assumes array is sorted.
+int lowestTgt(tgt, array){
+
+  int index = -1;  
+  int size = array.size();
+
+  // check if lower than first target:
+  if (tgt < array[0]) return index;
+
+  // check if higher than last target:
+  if (tgt > array[size-1]) return size-1;
+
+  for (int i = 0; i < size; i++){
+    if (tgt > array[i]){
+      index=i;
+    }
+    else return index;
+  }
+  
+  return size;
+}
+
