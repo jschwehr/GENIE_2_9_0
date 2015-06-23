@@ -679,6 +679,7 @@ STFC, Rutherford Appleton Laboratory
   <param type="alg" name="XSecModel@genie::EventGenerator/DFR-CC">         genie::ReinDFRPXSec/Default           </param>
   <param type="alg" name="XSecModel@genie::EventGenerator/DFR-NC">         genie::ReinDFRPXSec/Default           </param>
   <param type="alg" name="XSecModel@genie::EventGenerator/MEC-CC">         genie::MECPXSec/Default               </param>
+  <param type="alg" name="XSecModel@genie::EventGenerator/MEC-CC-TENSOR">  genie::MECTensorPXSec/Default               </param>
   <param type="alg" name="XSecModel@genie::EventGenerator/MEC-NC">         genie::MECPXSec/Default               </param>
   <param type="alg" name="XSecModel@genie::EventGenerator/MEC-EM">         genie::MECPXSec/Default               </param>
   <param type="alg" name="XSecModel@genie::EventGenerator/GLRES">          genie::GLRESPXSec/Default             </param>
@@ -701,7 +702,17 @@ STFC, Rutherford Appleton Laboratory
   <param type="double" name="GVLD-Emin">    0.010  </param>
   <param type="double" name="GVLD-Emax"> 1000.000  </param>
 
+ <!-- 
+  ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+  MECTensor options
+  - TensorModel: 1 - Nieves
+                 2 - Martini
+  -->
+  <param type="int" name="TensorModel">   1  </param>
+
+
+
+
+
  </param_set>
-
-
 </global_param_list>

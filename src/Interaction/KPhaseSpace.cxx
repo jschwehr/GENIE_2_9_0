@@ -159,6 +159,19 @@ double KPhaseSpace::Threshold(void) const
     return TMath::Max(0.,Ethr);
   }
 
+  if(pi.IsMECTensor()) {
+    /*
+    assert(tgt.HitNucIsSet());
+    double Mn   = tgt.HitNucP4Ptr()->M();
+    double Mn2  = TMath::Power(Mn,2);
+    double Wmin = fInteraction->RecoilNucleon()->Mass(); // mass of the recoil nucleon cluster 
+    double smin = TMath::Power(Wmin+ml,2.);
+    double Ethr = 0.5*(smin-Mn2)/Mn;
+    return TMath::Max(0.,Ethr);
+    */
+    return 0.1;
+  }
+
   SLOG("KPhaseSpace", pERROR) 
          << "Can't compute threshold for \n" << *fInteraction;
   exit(1);
@@ -221,7 +234,8 @@ bool KPhaseSpace::IsAboveThreshold(void) const
      pi.IsDeepInelastic()    || 
      pi.IsDiffractive()      || 
      pi.IsSingleKaon()       ||
-     pi.IsAMNuGamma()) 
+     pi.IsAMNuGamma()        ||
+     pi.IsMECTensor())
   {
       E = init_state.ProbeE(kRfHitNucRest);
   }
@@ -295,6 +309,16 @@ bool KPhaseSpace::IsAllowed(void) const
     bool allowed = in_phys;
     return allowed;
   }
+
+  //MECTensor
+  if (pi.IsMECTensor()){
+    Range1D_t Q2l = this->Q2Lim();
+    double    Q2  = kine.Q2();
+    bool in_phys = math::IsWithinLimits(Q2, Q2l);
+    bool allowed = in_phys;
+    return allowed;
+  }
+
 
   return false;
 }
@@ -417,7 +441,16 @@ Range1D_t KPhaseSpace::Q2Lim(void) const
     }
     return Q2l;
   }
-
+  
+  // MEC Tensor
+  if (pi.IsMECTensor()){
+    double W = fInteraction->RecoilNucleon()->Mass();
+    Q2l = kinematics::InelQ2Lim_W(Ev,M,ml,W);
+    double Q2maxConfig = 1.2; // need to pull from config file somehow?
+    if (Q2l.max > Q2maxConfig) Q2l.max = Q2maxConfig;
+    return Q2l;
+  }
+  
   // inelastic
   Q2l = kinematics::InelQ2Lim(Ev,M,ml);  
   return Q2l;
